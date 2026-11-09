@@ -4,12 +4,14 @@ DB_NAME = "consult.db"
 
 async def init_db():
     async with aiosqlite.connect(DB_NAME) as db:
+        # Таблица пользователей
         await db.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 user_id INTEGER PRIMARY KEY,
                 limit_count INTEGER DEFAULT 10
             )
         """)
+        # Таблица истории
         await db.execute("""
             CREATE TABLE IF NOT EXISTS history (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -18,6 +20,7 @@ async def init_db():
                 content TEXT
             )
         """)
+        # Таблица логов
         await db.execute("""
             CREATE TABLE IF NOT EXISTS logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -35,7 +38,8 @@ async def get_user(user_id):
         cursor = await db.execute("SELECT limit_count FROM users WHERE user_id = ?", (user_id,))
         user = await cursor.fetchone()
         if not user:
-            await db.execute("INSERT INTO users (user_id) VALUES (?)", (user_id,))
+            # Создаем пользователя, если его нет, и сразу выдаем лимит
+            await db.execute("INSERT INTO users (user_id, limit_count) VALUES (?, 10)", (user_id,))
             await db.commit()
             return (10,)
         return user
