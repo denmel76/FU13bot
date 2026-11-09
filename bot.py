@@ -73,6 +73,7 @@ async def handle_text(message: types.Message):
     user_id = message.from_user.id
     user = await get_user(user_id)
     
+    # Проверка лимита
     if user[0] <= 0 and user_id != ADMIN_ID:
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="📞 Связаться с менеджером", url="https://t.me/koolkrossovki4U")]
@@ -86,18 +87,25 @@ async def handle_text(message: types.Message):
 
     await message.bot.send_chat_action(message.chat.id, "typing")
     
+    # 1. Сохраняем вопрос
     await add_history(user_id, "user", message.text)
     history = await get_history(user_id)
     
+    # 2. Получаем ответ от YandexGPT
     ai_reply = await ask_yandex_gpt(history)
     
+    # 3. Сохраняем ответ в историю и лог
     await add_history(user_id, "assistant", ai_reply)
     await save_log(user_id, message.from_user.username or "unknown", message.text, ai_reply)
     
+    # 4. УМЕНЬШАЕМ ЛИМИТ (если это не админ)
     if user_id != ADMIN_ID:
         await update_limit(user_id, -1)
+        # Получаем обновленные данные для отображения
         user = await get_user(user_id)
+        logging.info(f"Лимит пользователя {user_id} уменьшен. Осталось: {user[0]}")
     
+    # 5. Отправляем ответ
     await message.answer(f"{ai_reply}\n\n_(Осталось вопросов: {user[0]})_", parse_mode="Markdown")
 
 # --- АДМИН-КОМАНДЫ ---
