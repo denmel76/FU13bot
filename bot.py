@@ -25,7 +25,7 @@ async def ask_gemini(messages):
         api_messages.append({"role": msg["role"], "content": msg["content"]})
     
     payload = {
-        "model": "meta-llama/llama-3-8b-instruct:free",
+        "model": "meta-llama/llama-3.1-8b-instruct:free",
         "messages": api_messages,
         "max_tokens": 500
     }
