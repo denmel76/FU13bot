@@ -4,14 +4,12 @@ DB_NAME = "consult.db"
 
 async def init_db():
     async with aiosqlite.connect(DB_NAME) as db:
-        # Таблица пользователей (лимиты)
         await db.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 user_id INTEGER PRIMARY KEY,
                 limit_count INTEGER DEFAULT 10
             )
         """)
-        # Таблица истории диалога (для памяти)
         await db.execute("""
             CREATE TABLE IF NOT EXISTS history (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -20,7 +18,6 @@ async def init_db():
                 content TEXT
             )
         """)
-        # Таблица журнала (для админа)
         await db.execute("""
             CREATE TABLE IF NOT EXISTS logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
