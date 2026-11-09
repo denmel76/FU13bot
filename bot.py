@@ -4,40 +4,39 @@ import aiohttp
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from config import BOT_TOKEN, ADMIN_ID, OPENROUTER_API_KEY, SYSTEM_PROMPT, FREE_LIMIT
+from config import BOT_TOKEN, ADMIN_ID, YANDEX_API_KEY, YANDEX_FOLDER_ID, SYSTEM_PROMPT, FREE_LIMIT
 from database import init_db, get_user, update_limit, add_history, get_history, clear_history, save_log, get_logs
 
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# --- ФУНКЦИЯ ЗАПРОСА К GEMINI ЧЕРЕЗ OPENROUTER ---
-async def ask_gemini(messages):
-    url = "https://openrouter.ai/api/v1/chat/completions"
+# --- ФУНКЦИЯ ЗАПРОСА К YANDEXGPT ---
+async def ask_yandex_gpt(messages):
+    url = "https://llm.api.cloud.yandex.net/foundationModels/v1/completion"
     headers = {
-        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Authorization": f"Api-Key {YANDEX_API_KEY}",
         "Content-Type": "application/json"
     }
     
-    # Формируем историю
-    api_messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    yandex_messages = [{"role": "system", "text": SYSTEM_PROMPT}]
     for msg in messages:
-        api_messages.append({"role": msg["role"], "content": msg["content"]})
+        yandex_messages.append({"role": msg["role"], "text": msg["content"]})
     
     payload = {
-        "model": "meta-llama/llama-3.1-8b-instruct:free",
-        "messages": api_messages,
-        "max_tokens": 500
+        "modelUri": f"gpt://{YANDEX_FOLDER_ID}/yandexgpt-lite",
+        "completionOptions": {"stream": False, "temperature": 0.3, "maxTokens": 500},
+        "messages": yandex_messages
     }
     
     async with aiohttp.ClientSession() as session:
         async with session.post(url, headers=headers, json=payload) as response:
             if response.status == 200:
                 result = await response.json()
-                return result['choices'][0]['message']['content']
+                return result['result']['alternatives'][0]['message']['text']
             else:
                 err = await response.text()
-                logging.error(f"OpenRouter Error: {err}")
+                logging.error(f"YandexGPT Error: {err}")
                 return "Извините, произошла ошибка на сервере. Попробуйте позже."
 
 # --- КОМАНДЫ ---
@@ -57,7 +56,6 @@ async def cmd_start(message: types.Message):
         reply_markup=keyboard
     )
     
-    # Уведомление админу о новом пользователе
     if message.from_user.id != ADMIN_ID:
         try:
             await bot.send_message(ADMIN_ID, f"👤 Новый пользователь: {message.from_user.full_name} (@{message.from_user.username})\nID: {message.from_user.id}")
@@ -75,7 +73,6 @@ async def handle_text(message: types.Message):
     user_id = message.from_user.id
     user = await get_user(user_id)
     
-    # Проверка лимита
     if user[0] <= 0 and user_id != ADMIN_ID:
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="📞 Связаться с менеджером", url="https://t.me/koolkrossovki4U")]
@@ -89,23 +86,18 @@ async def handle_text(message: types.Message):
 
     await message.bot.send_chat_action(message.chat.id, "typing")
     
-    # Сохраняем вопрос
     await add_history(user_id, "user", message.text)
     history = await get_history(user_id)
     
-    # Получаем ответ от Gemini
-    ai_reply = await ask_gemini(history)
+    ai_reply = await ask_yandex_gpt(history)
     
-    # Сохраняем ответ
     await add_history(user_id, "assistant", ai_reply)
     await save_log(user_id, message.from_user.username or "unknown", message.text, ai_reply)
     
-    # Уменьшаем лимит
     if user_id != ADMIN_ID:
         await update_limit(user_id, -1)
         user = await get_user(user_id)
     
-    # Отправляем ответ
     await message.answer(f"{ai_reply}\n\n_(Осталось вопросов: {user[0]})_", parse_mode="Markdown")
 
 # --- АДМИН-КОМАНДЫ ---
@@ -132,7 +124,7 @@ async def cmd_logs(message: types.Message):
 
 async def main():
     await init_db()
-    print("AI Consultant Bot запущен...")
+    print("Yandex Consultant Bot запущен...")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
